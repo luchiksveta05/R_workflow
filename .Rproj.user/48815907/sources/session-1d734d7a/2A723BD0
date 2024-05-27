@@ -1,0 +1,32 @@
+{
+    "id": "2A723BD0",
+    "path": "C:/Users/sergasvi/Documents/R_workflow/R/analysis.qmd",
+    "project_path": "R/analysis.qmd",
+    "type": "quarto_markdown",
+    "hash": "1884673182",
+    "contents": "",
+    "dirty": false,
+    "created": 1716810235224.0,
+    "source_on_save": false,
+    "relative_order": 5,
+    "properties": {
+        "rmdVisualMode": "false",
+        "rmdVisualWrapConfigured": "true",
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "docOutlineVisible": "1",
+        "rmdVisualCollapsedChunks": "",
+        "cursorPosition": "26,106",
+        "scrollLine": "21",
+        "rmdVisualModeLocation": "1378:693.3333129882812"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1716814568,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1716814568434,
+    "read_only": false,
+    "read_only_alternatives": []
+}

@@ -1,0 +1,476 @@
+---
+title: "CombineDataBatch1"
+author: "Svitlana Serga, Nicolas RODE"
+date: "`r format(Sys.Date(), '%d-%B-%Y')`"
+output: 
+  html_document:
+    theme: "journal"
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+devtools::load_all()
+```
+# Load datasets for eggs
+## For week 2 we will use only ChooiLin`s dataset
+```{r}
+
+## Import data
+dataChooiLin <- tibble::as_tibble(read.table(file = file.path(here::here(), "data", "raw_data", "Batch1", "CI_ChooiLin3.csv"), sep=",", header = TRUE))
+
+## Clean data
+dataChooiLin <- dataChooiLin %>% 
+  dplyr::mutate(DishNumber = as.character(DishNumber)) %>%
+  dplyr::mutate(Date_of_cross=as.Date(Date_of_cross, format = "%m/%d/20%y")) %>%
+  dplyr::mutate(Date_of_eggs_count=as.Date(Date_of_eggs_count, format = "%m/%d/20%y"))
+
+##!! Check that the date format is year-month-day
+dataChooiLin$Date_of_cross
+dataChooiLin$Date_of_eggs_count
+
+## 19 Petri dishes with uncertain information
+dataChooiLin %>% 
+      dplyr::filter(Calibration_eggs>1) 
+
+## Remove data from week 1, 1 CoupleID with NA and the 19 Petri dishes with uncertain information
+dataChooiLin <- dataChooiLin %>% 
+  dplyr::filter(Calibration_eggs==1) %>% 
+  dplyr::filter(Date_of_cross >= "2023-02-06") %>%
+  dplyr::filter(!is.na(CoupleID))
+
+## Check the 19 NumberLaidEggs with NAs in the second week
+length(dataChooiLin$NumberLaidEggs[is.na(dataChooiLin$NumberLaidEggs)])
+## Check the 0 CoupleID with NAs
+length(dataChooiLin$CoupleID[is.na(dataChooiLin$CoupleID)])
+## Check the 1 dishnumber with NAs
+length(dataChooiLin$DishNumber[is.na(dataChooiLin$DishNumber)])
+
+## For egg count week2 use only Chooi Lin's dataset
+data <- dataChooiLin %>% 
+  dplyr::mutate(CrossType_CoupleID = paste(CrossType, CoupleID, sep="_"))
+
+## Two couples IDs are identical
+data %>% 
+  dplyr::filter(CrossType_CoupleID=="SFLxMT47_32") %>% 
+  dplyr::mutate(DishNumber = dplyr::case_when(CrossType_CoupleID=="SFLxMT47_32" & Date_of_cross == "2023-02-08" ~ gsub(pattern="32.", replacement="321.", DishNumber),
+                                          TRUE ~ DishNumber))
+
+## Two couples IDs are identical
+data %>% 
+  dplyr::filter(CrossType_CoupleID=="SFLxMT47_33") %>% 
+  dplyr::mutate(DishNumber = dplyr::case_when(CrossType_CoupleID=="SFLxMT47_33" & Date_of_cross == "2023-02-08" ~ gsub(pattern="33.", replacement="331.", DishNumber),
+                                          TRUE ~ DishNumber))
+
+## Rename Petridish
+data <- data %>% 
+  dplyr::mutate(DishNumber = dplyr::case_when(CrossType_CoupleID=="SFLxMT47_32" & Date_of_cross == "2023-02-08" ~ gsub(pattern="32.", replacement="321.", DishNumber),
+                                          TRUE ~ DishNumber)) %>% 
+  dplyr::mutate(DishNumber = dplyr::case_when(CrossType_CoupleID=="SFLxMT47_33" & Date_of_cross == "2023-02-08" ~ gsub(pattern="33.", replacement="331.", DishNumber),
+                                          TRUE ~ DishNumber)) %>% 
+  dplyr::mutate(CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_32" & Date_of_cross == "2023-02-08", 321, CoupleID)) %>% 
+  dplyr::mutate(CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_33" & Date_of_cross == "2023-02-08", 331, CoupleID))  %>% 
+  dplyr::mutate(CrossType_CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_32" & Date_of_cross == "2023-02-08", "SFLxMT47_321", CrossType_CoupleID)) %>% 
+  dplyr::mutate(CrossType_CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_33" & Date_of_cross == "2023-02-08", "SFLxMT47_331", CrossType_CoupleID)) 
+
+## Check whether it worked
+data %>% 
+  dplyr::filter(CrossType_CoupleID=="SFLxMT47_321")
+data %>% 
+  dplyr::filter(CrossType_CoupleID=="SFLxMT47_331") 
+
+## Check that each coupleID has unique date for each Petri dish
+data %>%
+  dplyr::group_by(Date_of_cross, CrossType_CoupleID, Date_of_eggs_count) %>%
+  dplyr::summarize(n = dplyr::n()) %>%
+  dplyr::filter(n >1)
+
+## Export file
+write.table(x = data, file=file.path(here::here(), "data", "derived_data", "Batch1", "Eggdata_batch1.csv"), sep=";", row.names = FALSE)
+
+```
+## Check sample size
+```{r}
+## Check that each coupleID has unique date for each egg count
+## SFLxMT47_35	1	only one is available, others we have 2 with the same number
+## T18xT10_21	4	21.5 is missing, but we have data for larvae
+## T18xT10_26	4	26.5 is calibration 3
+## W120xW148_29	4	29.2 is calibration 3
+## W120xW148_32	4	32.1 is missing in eggs and larvae datasets
+## W140xW120_21	3	calibration 3 in two petri dishes
+## W140xW120_29	2	calibration 3 in three petri dishes
+## W148xW120_35	4	35.1 is missing
+
+data_sample_size <- data %>%
+  dplyr::group_by(CrossType_CoupleID) %>%
+  dplyr::summarize(n = dplyr::n()) %>%
+  dplyr::filter(n !=5)
+
+## Export file
+write.table(x = data_sample_size, file=file.path(here::here(), "data", "derived_data", "Batch1", "Sample_sizeEggdata_batch1.csv"), sep=";", row.names = FALSE)
+
+```
+## Use dataCoupleID to add Date_of_cross + MaleLine + FemaleLine information for eggs data
+```{r}
+dataCoupleID1 <- readxl::read_excel(  path = file.path(here::here(), "data", "raw_data", "Batch1", "Week1_CoupleID_Batch1.xlsx")) %>%
+  dplyr::select(CrossType, CoupleID, DateSettingPetri1, MaleAge)
+
+dataCoupleID2 <- readxl::read_excel(  path = file.path(here::here(), "data", "raw_data", "Batch1", "Week2_CoupleID_Batch1.xlsx"))%>%
+  dplyr::select(CrossType, CoupleID, DateSettingPetri1, MaleAge)
+
+## Correct male age from 2-3 days to 2.5 days
+dataCoupleID <- dplyr::bind_rows(list(dataCoupleID1, dataCoupleID2)) %>%
+  dplyr::mutate(MaleAge= as.numeric(dplyr::if_else(MaleAge=="2-3", "2.5", MaleAge))) %>%
+  dplyr::mutate(DateSettingPetri1=lubridate::ymd(DateSettingPetri1)) %>%
+  dplyr::mutate(CrossType_CoupleID = paste(CrossType, CoupleID, sep="_"))
+
+##Update the Petri dishes number for SFLxMT47_32 and SFLxMT47_33
+dataCoupleID <- dataCoupleID %>% 
+  dplyr::mutate(CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_32" & DateSettingPetri1 == "2023-02-08", 321, CoupleID)) %>% 
+  dplyr::mutate(CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_33" & DateSettingPetri1 == "2023-02-08", 331, CoupleID))  %>% 
+  dplyr::mutate(CrossType_CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_32" & DateSettingPetri1 == "2023-02-08", "SFLxMT47_321", CrossType_CoupleID)) %>% 
+  dplyr::mutate(CrossType_CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_33" & DateSettingPetri1 == "2023-02-08", "SFLxMT47_331", CrossType_CoupleID)) 
+
+
+## Merge the two datasets
+data <- dplyr::left_join(x=data, y=dplyr::select(dataCoupleID, c(DateSettingPetri1 , CrossType_CoupleID, MaleAge)), by = "CrossType_CoupleID")
+
+## Check whether the data of crosses in Chooi Lin's data are OK
+data %>%
+  dplyr::mutate(test= dplyr::if_else(DateSettingPetri1==Date_of_cross, 0, 1)) %>%
+  dplyr::filter(test>0)
+
+## Compute male and female age
+data <- data %>% 
+  dplyr::mutate(MaleAge_Eggs = MaleAge + Date_of_eggs_count-DateSettingPetri1) %>%
+  dplyr::mutate(FemaleAge_Eggs = 5 + Date_of_eggs_count-DateSettingPetri1)
+
+## Export file
+write.table(x = data, file=file.path(here::here(), "data", "derived_data", "Batch1", "Eggdata_batch1_clean.csv"), sep=";", row.names = FALSE)
+
+```
+# Load datasets for larvae
+## Sveta
+```{r}
+
+## Import data
+dataSvetal <- tibble::as_tibble(read.table(file = file.path(here::here(), "data", "raw_data", "Batch1", "CI_Sveta7.csv"), sep=",", header = TRUE))
+
+## Clean data
+dataSvetal <- dataSvetal %>% 
+  dplyr::mutate(DishNumber = as.character(DishNumber)) %>%
+  dplyr::mutate(CoupleID = as.character(CoupleID)) %>%
+  dplyr::select(-EggsLarvaeCheckedbySveta) %>%
+  dplyr::mutate(Date_of_cross=as.Date(Date_of_cross, format = "%m/%d/20%y")) %>%
+  ##dplyr::mutate(Date_of_cross=lubridate::ymd(Date_of_cross)) %>%
+  dplyr::mutate(Date_of_larvae_count=as.Date(Date_of_larvae_count, format = "%m/%d/20%y")) %>% 
+  dplyr::mutate(Observer_larvae=dplyr::na_if(Observer_larvae, ""))
+
+##!! Check that the date format is year-month-day
+dataSvetal$Date_of_cross
+dataSvetal$Date_of_larvae_count
+
+## 34 rows with calibration of 2 or 3
+dataSvetal %>% 
+  dplyr::filter(Calibration_larvae>1)
+
+## Remove data from week 1 and with calibration >1 and with no observer (649 rows)
+dataSvetal <- dataSvetal %>% 
+  dplyr::filter(!Calibration_larvae>1) %>% 
+  dplyr::filter(!is.na(Observer_larvae)) %>% 
+  dplyr::filter(Date_of_cross >= "2023-02-06")
+
+## Check the 0 rows with NAs
+length(dataSvetal$NumberLarvae[is.na(dataSvetal$NumberLarvae)])
+
+```
+
+## Marie
+```{r}
+## Import data
+dataMarie <- tibble::as_tibble(read.table(file = file.path(here::here(), "data", "raw_data", "Batch1", "CI_Marie3.csv"), sep=",", header = TRUE)) 
+
+## Check 28 rows for among-observer repeatability ("calibration")
+dataMarie %>%
+  dplyr::filter(Calibration_larvae>1)
+
+## Clean data
+dataMarie <- dataMarie %>% 
+  dplyr::select(-X) %>%
+  dplyr::mutate(Date_of_cross=as.Date(Date_of_cross, format = "%m/%d/20%y")) %>% 
+  ##dplyr::mutate(Date_of_cross=lubridate::ymd(Date_of_cross)) %>% 
+  dplyr::mutate(Date_of_larvae_count=as.Date(Date_of_larvae_count, format = "%m/%d/20%y")) %>% ##!! day after month
+  dplyr::mutate(DishNumber = as.character(DishNumber)) %>% 
+  dplyr::filter(Calibration_larvae==1)
+
+##!! Check that the date format is year-month-day
+dataMarie$Date_of_larvae_count
+
+## Get coupleID 
+dataMarie <- dataMarie %>% 
+dplyr::mutate(CoupleID = sapply (strsplit (DishNumber,'\\.'),"[", 1))
+
+## Check 0 rows with NAs
+length(dataMarie$NumberLarvae[is.na(dataMarie$NumberLarvae)])
+
+```
+## Nicolas
+```{r}
+
+## Import data
+dataNicolas <- tibble::as_tibble(read.table(file = file.path(here::here(), "data", "raw_data", "Batch1", "CI_Nicolas4.csv"), sep=",", header = TRUE))
+
+## Check 0 rows for among-observer repeatability ("calibration")
+dataNicolas %>%
+  dplyr::filter(Calibration_larvae>1)
+
+## Clean data                                 
+dataNicolas <- dataNicolas %>%
+  dplyr::mutate(Date_of_cross=as.Date(Date_of_cross)) %>%
+  ##dplyr::mutate(Date_of_cross=lubridate::ymd(Date_of_cross)) %>% 
+  dplyr::mutate(DishNumber = as.character(DishNumber)) %>%
+  dplyr::mutate(Date_of_larvae_count=as.Date(Date_of_larvae_count, format = "%m/%d/20%y"))
+
+##!! Check that the date format is year-month-day
+dataNicolas$Date_of_larvae_count
+
+## Get coupleID 
+dataNicolas <- dataNicolas %>% 
+dplyr::mutate(CoupleID = sapply (strsplit (DishNumber,'\\.'),"[", 1))
+
+## Check the rows with NAs
+length(dataNicolas$NumberLarvae[is.na(dataMarie$NumberLarvae)])
+
+```
+
+## Combine datasets for larvae and add Date_of_cross information for Sveta, Nicolas and Marie data
+```{r}
+## Combine dataset (1748 rows)
+datal <- dplyr::bind_rows(list(dataNicolas, dataSvetal, dataMarie)) %>% 
+  dplyr::mutate(CrossType_CoupleID = paste(CrossType, CoupleID, sep="_")) %>%
+  dplyr::mutate(CoupleID= as.numeric(CoupleID))
+
+## Compute Date_of_cross2
+datal <- datal %>% 
+  dplyr::mutate (PetriRank = as.numeric(sapply (strsplit (DishNumber,'\\.'),"[", 2))) %>%
+dplyr::mutate (Date_of_cross  = Date_of_larvae_count -3-PetriRank)
+
+## Remove data from week 1
+datal <- datal %>% 
+  dplyr::filter(Date_of_cross >= "2023-02-06")
+
+## Export file
+write.table(x = datal, file=file.path(here::here(), "data", "derived_data", "Batch1", "datacombinedall2.csv"), sep=";", row.names = FALSE)
+
+## Change Petri dish number for SFLxMT47_32 and SFLxMT47_33
+datal <- datal %>% 
+  dplyr::mutate(DishNumber = dplyr::case_when(CrossType_CoupleID=="SFLxMT47_32" & Date_of_cross == "2023-02-08" ~ gsub(pattern="32.", replacement="321.", DishNumber),
+                                          TRUE ~ DishNumber)) %>% 
+  dplyr::mutate(DishNumber = dplyr::case_when(CrossType_CoupleID=="SFLxMT47_33" & Date_of_cross == "2023-02-08" ~ gsub(pattern="33.", replacement="331.", DishNumber),
+                                          TRUE ~ DishNumber)) %>% 
+  dplyr::mutate(CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_32" & Date_of_cross == "2023-02-08", 321, CoupleID)) %>% 
+  dplyr::mutate(CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_33" & Date_of_cross == "2023-02-08", 331, CoupleID))  %>% 
+  dplyr::mutate(CrossType_CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_32" & Date_of_cross == "2023-02-08", "SFLxMT47_321", CrossType_CoupleID)) %>% 
+  dplyr::mutate(CrossType_CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_33" & Date_of_cross == "2023-02-08", "SFLxMT47_331", CrossType_CoupleID)) 
+
+## Check whether it worked
+data %>% 
+  dplyr::filter(CrossType_CoupleID=="SFLxMT47_321")
+data %>% 
+  dplyr::filter(CrossType_CoupleID=="SFLxMT47_331") 
+```
+
+## Use dataCoupleID to add Date_of_cross + MaleLine + FemaleLine information for larvae data
+```{r}
+
+## Load data with coupleID and dates of cross
+dataCoupleID <- readxl::read_excel(  path = file.path(here::here(), "data", "raw_data", "Batch1", "Week2_CoupleID_Batch1.xlsx"))%>%
+  dplyr::select(CrossType, CoupleID, DateSettingPetri1, MaleAge) %>%
+  dplyr::mutate(MaleAge= as.numeric(dplyr::if_else(MaleAge=="2-3", "2.5", MaleAge))) %>%
+  dplyr::mutate(DateSettingPetri1=lubridate::ymd(DateSettingPetri1)) %>%
+  dplyr::mutate(CrossType_CoupleID = paste(CrossType, CoupleID, sep="_"))
+
+## Resolve problem with the same CoupleID for two couples (SFLxMT47_32 and...33)
+dataCoupleID <- dataCoupleID %>% 
+  dplyr::mutate(CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_32" & DateSettingPetri1 == "2023-02-08", 321, CoupleID)) %>% 
+  dplyr::mutate(CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_33" & DateSettingPetri1 == "2023-02-08", 331, CoupleID))  %>% 
+  dplyr::mutate(CrossType_CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_32" & DateSettingPetri1 == "2023-02-08", "SFLxMT47_321", CrossType_CoupleID)) %>% 
+  dplyr::mutate(CrossType_CoupleID=dplyr::if_else(CrossType_CoupleID=="SFLxMT47_33" & DateSettingPetri1 == "2023-02-08", "SFLxMT47_331", CrossType_CoupleID))  
+
+datal$CrossType_CoupleID
+## Merge the two datasets 
+datal <- dplyr::left_join(x=datal, y=dplyr::select(dataCoupleID, c(DateSettingPetri1 , CrossType_CoupleID, MaleAge)), by = "CrossType_CoupleID")
+
+## Check whether the dates are ok
+datal3 <- datal %>%
+  dplyr::mutate(test= dplyr::if_else(DateSettingPetri1==Date_of_cross, 0, 1)) %>%
+  dplyr::filter(test>0)
+
+## Export file
+openxlsx::write.xlsx(datal3, file = file.path(here::here(), "data", "derived_data", "Batch1", "test_dates_larvae2.xlsx"), colNames = TRUE, borders = "all")
+openxlsx::write.xlsx(datal, file = file.path(here::here(), "data", "derived_data", "Batch1", "check_all_larvae2.xlsx"), colNames = TRUE, borders = "all")
+
+```
+## Check sample size for larvae data
+```{r}
+## Check that each coupleID has unique date for each Petri dish
+## AmxAm_24	4	24.5 is NA in eggs database
+## AmxAm_25	4	25.4 is NA in eggs database
+## SFLxMT47_34	1	4 Petri dishes are NA in eggs dataset
+## SFLxMT47_34	1	4 Petri dishes are calibration 3
+## T18xT3_26  4  26.5 is NA in eggs database
+## W120xW140_21 4	24.4 is missing in larvae dataset
+## W120xW148_28 `4	28.4 is missing in larvae dataset
+## W120xW148_31	4	4 Petri dishes are NA in eggs dataset
+## W120xW148_32 4 32.1.is missing in eggs and larvae datasets
+## W140xW120_23 4 23.3. is missing in larvae dataset
+## W140xW120_25 3 Petri dishes are NA in eggs dataset
+## W148xW120_24 4 24.1. is missing in larvae dataset
+## W148xW120_29 4 29.1 is missing in larvae dataset
+## W148xW120_33 4 one petri dish is missing in larvae dataset
+## T18xT10_26  4  26.2 is missing in larvae database
+
+data_sample_size <- datal %>%
+  dplyr::group_by(CrossType_CoupleID) %>%
+  dplyr::summarize(n = dplyr::n()) %>%
+  dplyr::filter(n !=5)
+
+## Check that each coupleID has unique date for each larval count
+datal %>%
+  dplyr::group_by(CrossType_CoupleID, Date_of_larvae_count ) %>%
+  dplyr::summarize(n = dplyr::n()) %>%
+  dplyr::filter(n !=1)
+
+
+## Export file
+write.table(x = data_sample_size, file=file.path(here::here(), "data", "derived_data", "Batch1", "Sample_sizeLarvaldata_batch1.csv"), sep=";", row.names = FALSE)
+
+```
+
+# Merge eggs and larvae datasets 
+```{r}
+
+
+## Merge the two datasets
+data <- data  %>%
+  dplyr::mutate(CrossType_DishNumber=paste(CrossType, DishNumber, sep="_"))
+
+datal <- datal  %>%
+  dplyr::mutate(CrossType_DishNumber=paste(CrossType, DishNumber, sep="_"))
+
+data_final <- dplyr::left_join(x=dplyr::select(data, -c(NumberLarvae , Observer_larvae, Date_of_larvae_count)), y=dplyr::select(datal, c(NumberLarvae , CrossType_DishNumber, Observer_larvae, Date_of_larvae_count)), by = "CrossType_DishNumber") %>%
+  dplyr::select(-c(DateSettingPetri1, FemaleAge, IdExcel, Checked)) %>%
+  dplyr::mutate(Batch=1)
+colnames(data_final)
+
+
+## Add FemaleLine and MaleLine
+data_final <- data_final %>%
+tidyr::separate(col = CrossType,
+  into = c("FemaleLine","MaleLine"),
+  sep = "x",
+  remove = FALSE)
+
+
+## Check data for NAs
+data_final <- data_final %>%
+  dplyr::mutate(Hatch_Rate=NumberLarvae/NumberLaidEggs)
+
+data_final2 <- data_final  %>%
+  dplyr::filter(is.na(NumberLaidEggs)|is.na(NumberLarvae))
+data_final2$NumberLaidEggs
+data_final2$NumberLarvae
+
+## Remove all rows with NA for NumberLaidEggs and NumberLarvae (final 1110 rows)
+data_final <- data_final %>%
+  dplyr::mutate(NumberLarvae= as.numeric(NumberLarvae)) %>%
+  dplyr::filter(!is.na(data_final$NumberLarvae)) %>%
+  dplyr::filter(!is.na(data_final$NumberLaidEggs))
+
+##Check for NA in hatch rate (102 rows with NA because of 0/0)
+data_final3 <- data_final  %>%
+  dplyr::filter(NumberLaidEggs==0) 
+hist(data_final$Hatch_Rate[data_final$NumberLaidEggs!=0])
+data_final$Hatch_Rate[data_final$NumberLaidEggs!=0&data_final$Hatch_Rate>1]
+
+sort(data_final$Hatch_Rate[data_final$NumberLaidEggs!=0&data_final$Hatch_Rate>1])
+
+write.table(x = data_final[data_final$NumberLaidEggs!=0&data_final$Hatch_Rate>1,], file=file.path(here::here(), "data", "derived_data", "Batch1", "Final_hatch_rate_greater_tah_zero.csv"), sep=";", row.names = FALSE)
+
+write.table(x = data_final3, file=file.path(here::here(), "data", "derived_data", "Batch1", "Final_hatch_rate_batch1.csv"), sep=";", row.names = FALSE)
+ 
+## Export file
+write.table(x = data_final, file=file.path(here::here(), "data", "derived_data", "Batch1", "Final_dataset_batch1_2.csv"), sep=";", row.names = FALSE)
+
+```
+
+# Check final dataset 
+```{r}
+
+## Number of Couples in each cross type
+
+  data_final_Couple <- data_final %>%
+  dplyr::group_by(CrossType) %>%
+  dplyr::summarize(dplyr::n_distinct(CrossType_CoupleID))
+  
+## Export file
+write.table(x = data_final_Couple, file=file.path(here::here(), "data", "derived_data", "Batch1", "CoupleID_number.csv"), sep=";", row.names = FALSE)
+
+## Count mean hatch rate per each CoupleID
+
+data_final_mean_hatch_rate <- data_final %>%
+  dplyr::group_by(CrossType_CoupleID) %>%
+  dplyr::summarize(mean(Hatch_Rate, na.rm = TRUE))
+
+```
+
+# Plot the results of hatch rate estimation
+
+```{r}
+
+ggplot2::ggplot(data = data_final, ggplot2::aes(x = CrossType, y = Hatch_Rate)) +
+  ggplot2::geom_jitter(ggplot2::aes(color = CrossType),
+              width = 0.1, # specifies the width, change this to change the range of scatter
+              alpha = 0.7, # specifies the amount of transparency in the points
+              show.legend = FALSE)+ ggplot2::ylim(0, 20) # don't leave a legend in a plot, if it doesn't add value
+
+```
+
+# Prepare final dataset for the analyses with other batches 
+
+```{r}
+
+## Load dataset
+data_final <- tibble::as_tibble(read.table(file = file.path(here::here(), "data", "derived_data", "Batch1", "Final_dataset_batch1_2.csv"), sep=";", header = TRUE))
+
+##Add necessary information
+data_final <- data_final %>%
+  dplyr::mutate(DishNumber = as.character(DishNumber)) %>%
+  dplyr::mutate(Flip = sapply (strsplit (DishNumber,'\\.'),"[", 2)) 
+data_final$Flip
+
+##Change observer name to abbreviation
+data_final <- data_final %>%
+  dplyr::mutate(Observer_eggs=dplyr::if_else(Observer_eggs=="ChooiLin", "CLP", Observer_eggs))  %>%
+  dplyr::mutate(Observer_larvae=dplyr::if_else(Observer_larvae=="Sveta", "SS", Observer_larvae))  %>% 
+dplyr::mutate(Observer_larvae=dplyr::if_else(Observer_larvae=="Nicolas", "NR", Observer_larvae))  %>%
+  dplyr::mutate(Observer_larvae=dplyr::if_else(Observer_larvae=="Marie", "ML", Observer_larvae))
+
+##Check for NA in Observer_eggs and Observer_larvae (26 NA = 19NA in eggs count and 7 PetriDishes with number of eggs, but without number of larvae)
+data_final2 <- data_final  %>%
+  dplyr::filter(is.na(Observer_eggs)|is.na(Observer_larvae))
+
+## Reorder column names
+data_final3 <- data_final %>%
+ dplyr::select (CoupleID, Flip, CrossType_DishNumber,Date_of_eggs_count, NumberLaidEggs, Observer_eggs, Date_of_larvae_count, NumberLarvae, Observer_larvae, Date_of_cross, CrossType, FemaleLine, MaleLine, MaleAge, Batch)
+
+## Export file
+write.table(x = data_final3, file=file.path(here::here(), "data", "derived_data", "Batch1", "Batch_1.csv"), sep=";", row.names = FALSE)
+
